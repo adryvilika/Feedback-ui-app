@@ -304,10 +304,10 @@
 
           btn.innerText = 'Uploading to S3...';
           
-          // STEP 2: Carichiamo il file DIRETTAMENTE su S3 usando l'URL magico (bypassando API Gateway!)
+          // STEP 2: Carichiamo il file DIRETTAMENTE su S3
           const uploadRes = await fetch(upload_url, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/pdf' },
+            // Abbiamo rimosso l'header Content-Type per evitare conflitti di firma 403
             body: file
           });
           
