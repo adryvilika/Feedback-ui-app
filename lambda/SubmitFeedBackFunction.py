@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         if 'body' in event:
             body = json.loads(event['body'])  # Parse the incoming body
         # If not, check if the event has fields directly (for custom events)
-        elif 'name' in event and 'email' in event:
+        elif 'name' in event and 'email' in event or 'action' in event:
             body = event  # Use the event data as body
         else:
             return {
@@ -45,15 +45,58 @@ def lambda_handler(event, context):
                 'body': json.dumps({ 'message': 'Invalid request format.' })
             }
 
+        # --- NUOVA LOGICA: Generazione S3 Presigned URL per l'UPLOAD ---
+        # Se il frontend chiede un URL per caricare il file direttamente su S3 bypassando API Gateway
+        if body.get('action') == 'get_upload_url':
+            feedback_id = str(uuid.uuid4())
+            key = f"{feedback_id}.pdf"
+            
+            # Generiamo un Presigned URL per l'azione 'put_object' (caricamento) valido 5 minuti
+            upload_url = s3.generate_presigned_url(
+                'put_object',
+                Params={'Bucket': BUCKET_NAME, 'Key': key, 'ContentType': 'application/pdf'},
+                ExpiresIn=300
+            )
+            
+            print(f"Generated presigned upload URL for key: {key}")
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': '*',
+                    'Access-Control-Allow-Methods': 'POST,OPTIONS'
+                },
+                'body': json.dumps({
+                    'upload_url': upload_url, 
+                    'file_key': key,
+                    'feedback_id': feedback_id
+                })
+            }
+        # -----------------------------------------------------------------
+
         # Extract individual fields from the parsed body
-        feedback_id = str(uuid.uuid4())  # Generate a unique ID for the feedback
+        # Usiamo il feedback_id passato dal frontend (se presente), altrimenti ne creiamo uno nuovo
+        feedback_id = body.get('feedback_id', str(uuid.uuid4()))  
         name = body.get('name')  # Extract name
         email = body.get('email')  # Extract email
         message = body.get('message')  # Extract message
         file_base64 = body.get('file_base64')  # Extract base64 encoded image (optional)
+        file_key = body.get('file_key') # Extract file_key se il file è già stato caricato su S3
 
         file_url = None  # Default to None in case no file is provided
-        if file_base64:
+        
+        # NUOVA LOGICA: Se il frontend ci passa la file_key, il file è GIA' su S3!
+        if file_key:
+            key = file_key
+            # Generate a pre-signed URL for the uploaded file to be accessed for 24 hours (Download link for email)
+            file_url = s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': BUCKET_NAME, 'Key': key},
+                ExpiresIn=86400  # URL expires in 24 hours
+            )
+            
+        # VECCHIA LOGICA MANTENUTA: Continua a funzionare se inviamo il Base64 come prima
+        elif file_base64:
             # Generate a unique key for the file based on feedback ID
             key = f"{feedback_id}.pdf"
 

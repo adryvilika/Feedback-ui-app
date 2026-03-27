@@ -236,9 +236,8 @@
   <script>
     /* =========================================
        API Configuration Endpoint
-       IMPORTANT: Replaced the direct URL with a placeholder for public repository submission.
        ========================================= */
-    const FEEDBACK_API_URL = 'https://jvv39b9203.execute-api.eu-north-1.amazonaws.com/prod/submit'; // e.g., 'https://jvv39b9203.execute-api.eu-north-1.amazonaws.com/prod/submit'
+    const FEEDBACK_API_URL = 'https://jvv39b9203.execute-api.eu-north-1.amazonaws.com/prod/submit'; 
 
     /* =========================================
        Event Listener: Updates UI upon file selection
@@ -263,38 +262,71 @@
       // Updates button state to indicate processing
       const submitBtn = e.target.querySelector('button[type="submit"]');
       const originalBtnText = submitBtn.innerText;
-      submitBtn.innerText = 'Sending...';
+      submitBtn.innerText = 'Preparing...';
       submitBtn.disabled = true;
 
       // Data extraction from form fields
       const name = document.getElementById('name').value;
       const email = document.getElementById('email').value;
       const message = document.getElementById('message').value;
+      
+      // Invece di leggere in Base64, passiamo direttamente il file (se presente)
       const file = document.getElementById('file').files[0];
 
-      // File processing: Base64 encoding if a file is present
-      let file_base64 = null;
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          file_base64 = reader.result.split(',')[1];
-          await submitFeedback(name, email, message, file_base64, submitBtn, originalBtnText);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        await submitFeedback(name, email, message, null, submitBtn, originalBtnText);
-      }
+      await submitFeedback(name, email, message, file, submitBtn, originalBtnText);
     });
 
     /* =========================================
-       Function: Executes API payload delivery
+       Function: Executes Advanced S3 Direct Upload & API payload delivery
        ========================================= */
-    async function submitFeedback(name, email, message, file_base64, btn, originalText) {
+    async function submitFeedback(name, email, message, file, btn, originalText) {
       try {
+        // Prepariamo il payload di base
+        let payload = { name, email, message };
+
+        // Se c'è un file, iniziamo il processo a tre step
+        if (file) {
+          btn.innerText = 'Requesting secure link...';
+          
+          // STEP 1: Richiediamo il Presigned URL all'API Gateway
+          const urlRes = await fetch(FEEDBACK_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_upload_url' })
+          });
+          const urlData = await urlRes.json();
+          
+          if(urlRes.status !== 200) {
+              throw new Error(urlData.message || 'Could not get upload link');
+          }
+
+          const { upload_url, file_key, feedback_id } = urlData;
+
+          btn.innerText = 'Uploading to S3...';
+          
+          // STEP 2: Carichiamo il file DIRETTAMENTE su S3 usando l'URL magico (bypassando API Gateway!)
+          const uploadRes = await fetch(upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/pdf' },
+            body: file
+          });
+          
+          if(!uploadRes.ok) {
+              throw new Error('Direct file upload to S3 failed');
+          }
+
+          // STEP 3: Aggiungiamo le chiavi del file al payload da inviare a DynamoDB
+          payload.file_key = file_key;
+          payload.feedback_id = feedback_id;
+        }
+
+        btn.innerText = 'Saving data...';
+        
+        // ULTIMO STEP: Invio finale dei metadati all'API Gateway (sia con file che senza)
         const res = await fetch(FEEDBACK_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, message, file_base64 })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         
@@ -305,7 +337,7 @@
 
         showModal(data.message || 'Feedback submitted successfully!');
       } catch (err) {
-        showModal('Submission failed: Check permissions or API setup.');
+        showModal('Submission failed: ' + err.message);
         console.error(err);
       } finally {
         // Restores initial button state
