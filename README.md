@@ -29,22 +29,23 @@ Un'applicazione web serverless completa progettata per raccogliere feedback dagl
       ├── 💾 Salva metadati record ──► [ Amazon DynamoDB ]
       ├── 📁 Carica file PDF ────────► [ Amazon S3 (Storage Bucket) ]
       └── 📧 Invia notifica ─────────► [ Amazon SES ]
+```
 
 
 ## Tecnologie Utilizzate
 Frontend: HTML5, CSS3, Vanilla JavaScript
 
-Backend & Compute: AWS Lambda (Python 3.x), Amazon API Gateway (REST)
+**Backend & Compute**: AWS Lambda (Python 3.x), Amazon API Gateway (REST)
 
-Storage & Database: Amazon S3, Amazon DynamoDB
+**Storage & Database**: Amazon S3, Amazon DynamoDB
 
-Networking & Content Delivery: Amazon CloudFront
+**Networking & Content Delivery**: Amazon CloudFront
 
-Comunicazione: Amazon SES (Simple Email Service)
+**Comunicazione**: Amazon SES (Simple Email Service)
 
-Sicurezza: AWS IAM (Identity and Access Management - Principle of Least Privilege)
+**Sicurezza**: AWS IAM (Identity and Access Management)
 
-DevOps: Git, GitHub Actions
+**DevOps**: Git, GitHub Actions
 
 ## Struttura del Progetto
 Plaintext
@@ -95,3 +96,6 @@ AWS_REGION
 S3_BUCKET (Nome del bucket di hosting)
 
 CLOUDFRONT_DIST_ID (ID della distribuzione)
+
+
+
