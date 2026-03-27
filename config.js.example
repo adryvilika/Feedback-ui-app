@@ -1,5 +1,0 @@
-const CONFIG = {
-    FEEDBACK_API_URL: '*'
-};
-
-// e.g., 'https://jvv39b9203.execute-api.eu-north-1.amazonaws.com/prod/submit'
