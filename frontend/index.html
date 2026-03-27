@@ -304,14 +304,382 @@
 
           btn.innerText = 'Uploading to S3...';
           
-          // STEP 2: Carichiamo il file DIRETTAMENTE su S3
+          // STEP 2: Carichiamo il file DIRETTAMENTE su S3 usando l'URL magico (bypassando API Gateway!)
           const uploadRes = await fetch(upload_url, {
             method: 'PUT',
-            // Abbiamo rimosso l'header Content-Type per evitare conflitti di firma 403
+            headers: { 'Content-Type': 'application/pdf' },
             body: file
           });
           
           if(!uploadRes.ok) {
+              throw new Error('Direct file upload to S3 failed');
+          }
+
+          // STEP 3: Aggiungiamo le chiavi del file al payload da inviare a DynamoDB
+          payload.file_key = file_key;
+          payload.feedback_id = feedback_id;
+        }
+
+        btn.innerText = 'Saving data...';
+        
+        // ULTIMO STEP: Invio finale dei metadati all'API Gateway (sia con file che senza)
+        const res = await fetch(FEEDBACK_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        // Handles non-200 server responses
+        if(res.status !== 200) {
+            throw new Error(data.message || 'Server Error');
+        }
+
+        showModal(data.message || 'Feedback submitted successfully!');
+      } catch (err) {
+        showModal('Submission failed: ' + err.message);
+        console.error(err);
+      } finally {
+        // Restores initial button state
+        btn.innerText = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    /* =========================================
+       Function: Manages modal visibility and state
+       ========================================= */
+    function showModal(message) {
+      const modal = document.getElementById('myModal');
+      const modalMessage = document.getElementById('modalMessage');
+      const modalOkayButton = document.getElementById('modalOkayButton');
+
+      modalMessage.innerText = message;
+      modal.style.display = 'block';
+
+      modalOkayButton.onclick = function() {
+        modal.style.display = 'none';
+        location.reload(); 
+      }
+    }
+  </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Feedback Form</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* =========================================
+       Global Layout and Typography Configuration
+       ========================================= */
+    body { 
+      font-family: 'Montserrat', sans-serif; 
+      margin: 0;
+      min-height: 100vh;
+      background-color: #F8EDEB; 
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    /* =========================================
+       Form Container Styling
+       ========================================= */
+    .form-section {
+      width: 100%;
+      max-width: 571px;
+      padding: 40px 32px;
+      background: #FFFFF0;
+      border-radius: 45px;
+      box-shadow: 0 10px 30px rgba(47, 0, 0, 0.08);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #2F0000;
+      font-size: 32px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    /* =========================================
+       Input Field Grouping and Typography
+       ========================================= */
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .input-group label {
+      color: #2F0000;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    /* =========================================
+       Standard Input Field Styling
+       ========================================= */
+    .custom-input {
+      width: 100%;
+      padding: 16px 23px;
+      border-radius: 45px;
+      border: 1px solid #ED5900;
+      background: transparent;
+      color: #2F0000;
+      font-size: 18px;
+      font-family: 'Montserrat', sans-serif;
+      box-sizing: border-box;
+      outline: none;
+      transition: box-shadow 0.3s ease;
+    }
+
+    .custom-input::placeholder {
+      color: rgba(47, 0, 0, 0.45);
+    }
+
+    .custom-input:focus {
+      box-shadow: 0 0 8px rgba(237, 89, 0, 0.3);
+    }
+
+    /* =========================================
+       Textarea Specific Adjustments
+       ========================================= */
+    textarea.custom-input {
+      border-radius: 24px;
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    /* =========================================
+       Custom File Upload Interface
+       ========================================= */
+    .file-upload-box {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      padding: 16px 23px;
+      border-radius: 45px;
+      border: 1px solid #ED5900;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .file-upload-box:hover {
+      background: rgba(237, 89, 0, 0.05);
+    }
+
+    .file-upload-box span {
+      color: rgba(47, 0, 0, 0.45);
+      font-size: 18px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Hides the default browser file input element */
+    input[type="file"] {
+      display: none;
+    }
+
+    /* =========================================
+       Submit Button Styling
+       ========================================= */
+    button[type="submit"] {
+      padding: 16px 40px;
+      background: #ED5900;
+      border-radius: 45px;
+      border: none;
+      color: #2F0000;
+      font-size: 20px;
+      font-weight: 600;
+      font-family: 'Montserrat', sans-serif;
+      cursor: pointer;
+      align-self: center; 
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 10px;
+    }
+
+    button[type="submit"]:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(237, 89, 0, 0.3);
+    }
+
+    /* =========================================
+       Modal Overlay and Content Styling
+       ========================================= */
+    .modal {
+      display: none; 
+      position: fixed; 
+      z-index: 10; 
+      left: 0;
+      top: 0;
+      width: 100%; 
+      height: 100%; 
+      background-color: rgba(47,0,0,0.6); 
+      padding-top: 100px;
+    }
+
+    .modal-content {
+      background: #FFFFF0;
+      margin: auto;
+      padding: 30px;
+      border-radius: 30px;
+      width: 80%;
+      max-width: 400px;
+      text-align: center;
+      border: 2px solid #ED5900;
+    }
+
+    .modal-content p {
+      font-size: 20px;
+      font-weight: 600;
+      color: #2F0000;
+      margin-bottom: 20px;
+    }
+
+    .modal-content button {
+      background: #ED5900;
+      color: #2F0000;
+      border: none;
+      padding: 10px 30px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      font-family: 'Montserrat', sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <form id="feedbackForm" class="form-section">
+    <h2>Feedback Form Test 5</h2>
+
+    <div class="input-group">
+      <label for="name">Full Name</label>
+      <input type="text" id="name" class="custom-input" placeholder="Enter your Full Name" required>
+    </div>
+
+    <div class="input-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" class="custom-input" placeholder="Enter your Email" required>
+    </div>
+
+    <div class="input-group">
+      <label for="message">Message</label>
+      <textarea id="message" class="custom-input" placeholder="Enter your Message ..." required></textarea>
+    </div>
+
+    <div class="input-group">
+      <label>Attach file (PDF)</label>
+      <label for="file" class="file-upload-box">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 7V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V9C21 7.89543 20.1046 7 19 7H13L11 5H5C3.89543 5 3 5.89543 3 7Z" stroke="#ED5900" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="fileNameDisplay">Attach your file here</span>
+      </label>
+      <input type="file" id="file" accept="application/pdf">
+    </div>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <div id="myModal" class="modal">
+    <div class="modal-content">
+      <p id="modalMessage">Feedback submitted successfully!</p>
+      <button id="modalOkayButton">Okay</button>
+    </div>
+  </div>
+
+  <script>
+    /* =========================================
+       API Configuration Endpoint
+       ========================================= */
+    const FEEDBACK_API_URL = 'https://jvv39b9203.execute-api.eu-north-1.amazonaws.com/prod/submit'; 
+
+    /* =========================================
+       Event Listener: Updates UI upon file selection
+       ========================================= */
+    document.getElementById('file').addEventListener('change', function(e) {
+      const fileNameDisplay = document.getElementById('fileNameDisplay');
+      if (e.target.files.length > 0) {
+        fileNameDisplay.textContent = e.target.files[0].name;
+        fileNameDisplay.style.color = '#2F0000'; 
+      } else {
+        fileNameDisplay.textContent = 'Attach your file here';
+        fileNameDisplay.style.color = 'rgba(47, 0, 0, 0.45)';
+      }
+    });
+
+    /* =========================================
+       Event Listener: Handles form submission process
+       ========================================= */
+    document.getElementById('feedbackForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // Updates button state to indicate processing
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn.innerText;
+      submitBtn.innerText = 'Preparing...';
+      submitBtn.disabled = true;
+
+      // Data extraction from form fields
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const message = document.getElementById('message').value;
+      
+      // Invece di leggere in Base64, passiamo direttamente il file (se presente)
+      const file = document.getElementById('file').files[0];
+
+      await submitFeedback(name, email, message, file, submitBtn, originalBtnText);
+    });
+
+    /* =========================================
+       Function: Executes Advanced S3 Direct Upload & API payload delivery
+       ========================================= */
+    async function submitFeedback(name, email, message, file, btn, originalText) {
+      try {
+        // Prepariamo il payload di base
+        let payload = { name, email, message };
+
+        // Se c'è un file, iniziamo il processo a tre step
+        if (file) {
+          btn.innerText = 'Requesting secure link...';
+          
+          // STEP 1: Richiediamo il Presigned URL all'API Gateway
+          const urlRes = await fetch(FEEDBACK_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_upload_url' })
+          });
+          const urlData = await urlRes.json();
+          
+          if(urlRes.status !== 200) {
+              throw new Error(urlData.message || 'Could not get upload link');
+          }
+
+          const { upload_url, file_key, feedback_id } = urlData;
+
+          btn.innerText = 'Uploading to S3...';
+          
+          // STEP 2: Carichiamo il file DIRETTAMENTE su S3
+          const uploadRes = await fetch(upload_url, {
+            method: 'PUT',
+            // NON AGGIUNGERE HEADERS QUI, inviamo il corpo "nudo"
+            body: file
+          });
+          
+          if(!uploadRes.ok) {
+              // Se fallisce, stampiamo l'errore esatto in console per debug
+              console.error("S3 Upload Error:", await uploadRes.text());
               throw new Error('Direct file upload to S3 failed');
           }
 
