@@ -48,13 +48,14 @@ Frontend: HTML5, CSS3, Vanilla JavaScript
 **DevOps**: Git, GitHub Actions
 
 ## Struttura del Progetto
-Plaintext
-.
+
+```text
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml      # Pipeline CI/CD per il deploy automatico
 ├── index.html              # Frontend UI e logica form (Fetch API + Base64)
 └── README.md               # Documentazione del progetto
+```
 
 ## Come replicare questo progetto (Deployment Steps)
 1️⃣ **Creazione S3 Buckets**
